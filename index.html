@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Гаражи">
+<meta name="theme-color" content="#EDF0F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1319" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Счетчики гаражей</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: одна узкая колонка под телефон, липкие вкладки, карточка на каждый счетчик в порядке обхода */
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --surface-2:#F5F7F9; --ink:#121A22; --muted:#5A6774; --line:#D4DBE2;
+  --accent:#2457C5; --accent-ink:#FFFFFF; --accent-soft:#E2EAFA;
+  --good:#1D8048; --good-soft:#DFF2E6; --warn:#9A6414; --warn-soft:#FBEFD9; --danger:#BE3329; --danger-soft:#FBE4E1;
+  --f-display:"Oswald","Arial Narrow",Arial,sans-serif;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1319; --surface:#161D25; --surface-2:#1C242E; --ink:#E7ECF1; --muted:#94A1AE; --line:#29333F;
+  --accent:#7099FF; --accent-ink:#0A1222; --accent-soft:#1B2944;
+  --good:#52C487; --good-soft:#143021; --warn:#E3B152; --warn-soft:#33280F; --danger:#F07169; --danger-soft:#3A1A18;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1319; --surface:#161D25; --surface-2:#1C242E; --ink:#E7ECF1; --muted:#94A1AE; --line:#29333F;
+  --accent:#7099FF; --accent-ink:#0A1222; --accent-soft:#1B2944;
+  --good:#52C487; --good-soft:#143021; --warn:#E3B152; --warn-soft:#33280F; --danger:#F07169; --danger-soft:#3A1A18;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-tap-highlight-color:transparent;min-height:100vh}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.app{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 48px;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1{font-family:var(--f-display);font-weight:600;font-size:30px;line-height:1.05;margin:2px 0 0;letter-spacing:.01em;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:500;font-size:19px;margin:0;letter-spacing:.02em}
+.save{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;min-height:20px}
+.save::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--line)}
+.save.ok::before{background:var(--good)} .save.err{color:var(--danger)} .save.err::before{background:var(--danger)}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px 0}
+.tabs button{font:600 14px var(--f-body);color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 6px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button{font-family:var(--f-body)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.notice{font-size:13px;background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.panel p{margin:0}
+.muted{color:var(--muted);font-size:13px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field>span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+input,textarea{font:500 16px var(--f-num);color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 10px;width:100%;min-width:0}
+textarea{font-family:var(--f-body);font-size:15px;resize:vertical;min-height:56px}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+.day-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+.rec-state{font-size:12px;font-weight:600;border-radius:8px;padding:6px 10px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.rec-state.full{background:var(--good-soft);color:var(--good)}
+.rec-state.part{background:var(--warn-soft);color:var(--warn)}
+.mlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.card.filled{border-color:color-mix(in srgb,var(--good) 45%,var(--line))}
+.card.bad{border-color:color-mix(in srgb,var(--danger) 55%,var(--line))}
+.c-head{display:flex;gap:10px;align-items:flex-start}
+.num{font:600 15px var(--f-display);min-width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--line);flex:none}
+.main .num{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.c-title{display:flex;flex-direction:column;gap:1px;min-width:0}
+.c-title strong{font-weight:600;font-size:16px;line-height:1.25}
+.c-meta{font-size:13px;color:var(--muted)}
+.c-in{font-size:20px;padding:11px 12px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.c-calc{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--muted);min-height:19px}
+.c-calc b{font-family:var(--f-num);font-weight:600;color:var(--ink)}
+.c-calc .kwh{color:var(--good)}
+.c-warn{font-size:13px;border-radius:8px;padding:6px 10px}
+.c-warn.err{background:var(--danger-soft);color:var(--danger)}
+.c-warn.warn{background:var(--warn-soft);color:var(--warn)}
+.sumtab{display:flex;flex-direction:column}
+.s-row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line)}
+.s-row:first-child{border-top:0}
+.s-row .nm{font-size:14px;font-weight:500}
+.s-row .nm small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.s-row .v{font:600 16px var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.s-row.tot{border-top:2px solid var(--ink)}
+.s-row.tot .nm,.s-row.tot .v{font-weight:600}
+.s-row.dif .v{color:var(--muted);font-size:14px}
+.s-row.dif.neg .v{color:var(--danger)}
+.c-actions{display:flex;flex-wrap:wrap;gap:6px}
+.btn{font-size:13px;font-weight:600;border-radius:9px;padding:8px 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-decoration:none}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+.btn.danger.solid{background:var(--danger);color:var(--surface);border-color:var(--danger)}
+.btn.big{width:100%;padding:14px;font-size:16px;border-radius:12px;text-align:center}
+.btn[disabled]{opacity:.45;cursor:default}
+.hist{display:flex;flex-direction:column}
+.h-row{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line)}
+.h-row:first-child{border-top:0}
+.h-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.h-top b{font-family:var(--f-num);font-weight:600;font-size:15px}
+.h-top span{font-size:12px;color:var(--muted)}
+.h-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.h-cell{background:var(--surface-2);border-radius:8px;padding:6px 8px;min-width:0}
+.h-cell span{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-cell b{font:600 14px var(--f-num);font-variant-numeric:tabular-nums}
+.h-foot{font-size:12px;color:var(--muted)}
+.h-foot b{font-family:var(--f-num);color:var(--ink);font-weight:600}
+.empty{text-align:center;padding:22px 14px;color:var(--muted);font-size:14px}
+.empty b{display:block;color:var(--ink);font-family:var(--f-display);font-weight:500;font-size:18px;margin-bottom:4px}
+.receipt-img{width:100%;height:auto;display:block;border-radius:10px;border:1px solid var(--line);background:#fff}
+.scheme{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.scheme b{font-weight:600}
+@media (max-width:420px){.h-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (prefers-reduced-motion: no-preference){.card,.panel{transition:border-color .2s}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Гаражи · электроэнергия · раз в месяц</div>
+      <h1>Счетчики гаражей</h1>
+    </div>
+    <span id="saveState" class="save" aria-live="polite">Загрузка…</span>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="Разделы">
+    <button role="tab" id="tab-log" data-tab="log" aria-selected="true">Показания</button>
+    <button role="tab" id="tab-hist" data-tab="hist" aria-selected="false">История</button>
+    <button role="tab" id="tab-data" data-tab="data" aria-selected="false">Данные</button>
+  </nav>
+  <div id="notice"></div>
+  <main id="view"></main>
+</div>
+
+<script>
+/* ---------- схема учета ---------- */
+const KT = 40; // коэффициент трансформации главного счетчика
+const METERS = [
+  {id:'main', num:'1', name:'Главный счетчик', sub:'КТ '+KT+': расход = разница × '+KT, main:true},
+  {id:'yak',  num:'2', name:'Яковлев К.М.', sub:'свой счетчик'},
+  {id:'tak',  num:'3', name:'Такранов А.И.', sub:'свой счетчик'},
+  {id:'klu',  num:'4', name:'Клюев А.В.', sub:'общий: Клюев + Андронов'},
+  {id:'and',  num:'5', name:'Андронов (Е.В.)', sub:'подсчетчик внутри «Клюева»'},
+];
+const GARAGES = [
+  {id:'yak', name:'Яковлев К.М.', calc:d=>d.yak},
+  {id:'tak', name:'Такранов А.И.', calc:d=>d.tak},
+  {id:'klu', name:'Клюев А.В.', hint:d=>'общий '+fmt(d.klu)+' − Андронов '+fmt(d.and), calc:d=>d.klu-d.and},
+  {id:'and', name:'Андронов (Е.В.)', calc:d=>d.and},
+];
+// начальные показания (заметки 21.07, 02.09, 24.09.2026)
+const SEED = {
+  '2026-07-21':{main:4156.4, yak:265313, tak:120027.8, klu:57843.2, and:25282.6},
+  '2026-09-02':{main:4217.9, yak:265758, tak:121122.7, klu:58731.1, and:25615.8},
+  '2026-09-24':{main:4249.9, yak:265962, tak:121651.6, klu:59267.3, and:25790.9},
+};
+const LS_REC='gar-readings', LS_BACKUP='gar-backup', LS_SEED='gar-seeded';
+const WD = ['вс','пн','вт','ср','чт','пт','сб'];
+
+const S = {rec:{}, tab:'log', date:todayStr(), confirmDel:null, receipt:null, png:null, pngUrl:null};
+
+/* ---------- утилиты ---------- */
+function todayStr(d=new Date()){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dmy(s){const [y,m,d]=s.split('-');return d+'.'+m+'.'+y}
+function dm(s){const [,m,d]=s.split('-');return d+'.'+m}
+function wd(s){return WD[new Date(s+'T12:00').getDay()]}
+function days(a,b){return Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5)}
+function daysWord(n){const a=Math.abs(n)%100,b=a%10;if(a>10&&a<20)return n+' дней';if(b===1)return n+' день';if(b>=2&&b<=4)return n+' дня';return n+' дней'}
+function r1(x){return Math.round(x*10)/10}
+function fmt(x){if(x==null||x===''||!isFinite(x))return '';const v=r1(x);return (Number.isInteger(v)?String(v):v.toFixed(1)).replace('.',',').replace('-','−')}
+function fmt1(x){if(x==null||!isFinite(x))return '';return r1(x).toFixed(1).replace('.',',').replace('-','−')}
+function parseNum(s){s=String(s||'').replace(/\s/g,'').replace(',','.');if(s==='')return null;const v=Number(s);return isFinite(v)&&v>=0?v:NaN}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function sortedDates(){return Object.keys(S.rec).sort()}
+function isFull(r){return !!r&&METERS.every(m=>typeof r.v[m.id]==='number')}
+
+/* ---------- хранение ---------- */
+function saveLocal(){try{localStorage.setItem(LS_REC,JSON.stringify(S.rec));setSave('ok');return true}
+  catch(e){setSave('err','Не сохранилось: хранилище недоступно');return false}}
+function loadLocal(){try{return JSON.parse(localStorage.getItem(LS_REC)||'{}')||{}}catch(e){return {}}}
+function setSave(st,txt){const el=document.getElementById('saveState');el.className='save '+st;el.textContent=txt||(st==='ok'?'Сохранено на телефоне':'')}
+
+/* ---------- расчет ---------- */
+// предыдущая запись, где есть значение данного счетчика
+function prevFor(date,id){const ds=sortedDates().filter(d=>d<date).reverse();for(const d of ds){const v=S.rec[d].v[id];if(typeof v==='number')return {date:d,v}}return null}
+function prevFull(date){const ds=sortedDates().filter(d=>d<date).reverse();for(const d of ds)if(isFull(S.rec[d]))return d;return null}
+// полный расчет периода между двумя полными записями
+function period(date){
+  const cur=S.rec[date];if(!isFull(cur))return null;const pd=prevFull(date);if(!pd)return null;const prev=S.rec[pd];
+  const d={};METERS.forEach(m=>d[m.id]=r1(cur.v[m.id]-prev.v[m.id]));
+  const mainKwh=r1(d.main*KT);
+  const g={};GARAGES.forEach(x=>g[x.id]=r1(x.calc(d)));
+  const sum=r1(d.yak+d.tak+d.klu);
+  const diff=r1(mainKwh-sum);
+  const bad=METERS.filter(m=>d[m.id]<0).map(m=>m.name).concat(g.klu<0?['Клюев А.В. (общий меньше Андронова)']:[]);
+  return {date,prevDate:pd,days:days(pd,date),cur:cur.v,prev:prev.v,d,mainKwh,g,sum,diff,pct:mainKwh?diff/mainKwh*100:0,note:cur.note||'',bad};
+}
+// обычный суточный расход счетчика по прошлым периодам (медиана)
+function usualRate(date,id){
+  const ds=sortedDates().filter(d=>d<date&&isFull(S.rec[d]));const rates=[];
+  for(let i=1;i<ds.length;i++){const n=days(ds[i-1],ds[i]);if(n>0)rates.push((S.rec[ds[i]].v[id]-S.rec[ds[i-1]].v[id])/n)}
+  if(rates.length<2)return null;rates.sort((a,b)=>a-b);const k=rates.length>>1;return rates.length%2?rates[k]:(rates[k-1]+rates[k])/2;
+}
+
+/* ---------- вкладка «Показания» ---------- */
+function curRec(){return S.rec[S.date]||{date:S.date,v:{},note:''}}
+function renderLog(){
+  const r=curRec();const exists=!!S.rec[S.date];
+  const cards=METERS.map(m=>{const pv=prevFor(S.date,m.id);const val=r.v[m.id];
+    return `<li class="card${m.main?' main':''}" id="card-${m.id}">
+      <div class="c-head"><div class="num">${m.num}</div><div class="c-title"><strong>${m.name}</strong><span class="c-meta">${m.sub}</span></div></div>
+      <input class="c-in" id="in-${m.id}" data-m="${m.id}" inputmode="decimal" autocomplete="off" enterkeyhint="next" aria-label="Показания: ${m.name}"
+        placeholder="${pv?fmt(pv.v):'показания'}" value="${val!=null?fmt(val):''}">
+      <div class="c-calc" id="calc-${m.id}"></div>
+      <div id="warn-${m.id}"></div>
+    </li>`}).join('');
+  return `<section class="panel">
+      <div class="day-row">
+        <label class="field"><span>Дата снятия · ${wd(S.date)}</span><input type="date" id="dateIn" value="${S.date}"></label>
+        <span class="rec-state" id="recState"></span>
+      </div>
+      <p class="muted" id="prevLine"></p>
+    </section>
+    <ul class="mlist">${cards}</ul>
+    <section class="panel" id="sumBox"></section>
+    <section class="panel">
+      <label class="field"><span>Заметка</span><textarea id="noteIn" placeholder="Например: у Такранова заменили счетчик, снимал вечером">${esc(r.note||'')}</textarea></label>
+      ${exists?(S.confirmDel===S.date
+        ?`<div class="c-actions"><button class="btn danger solid" data-act="delYes" data-d="${S.date}">Да, удалить показания за ${dmy(S.date)}</button><button class="btn" data-act="delNo">Отмена</button></div>`
+        :`<div class="c-actions"><button class="btn danger" data-act="del" data-d="${S.date}">Удалить запись</button></div>`):''}
+    </section>`;
+}
+function updateCalc(){
+  const r=curRec();let n=0;
+  METERS.forEach(m=>{
+    const inp=document.getElementById('in-'+m.id);const raw=parseNum(inp.value);
+    const pv=prevFor(S.date,m.id);const calc=document.getElementById('calc-'+m.id);const warn=document.getElementById('warn-'+m.id);const card=document.getElementById('card-'+m.id);
+    let c='',w='',bad=false;
+    if(Number.isNaN(raw)){w=`<div class="c-warn err">Не похоже на число. Вводи цифры, дробную часть через запятую.</div>`;bad=true}
+    else if(raw==null){c=pv?`пред. <b>${fmt(pv.v)}</b> · ${dmy(pv.date)}`:'первые показания, расход появится со следующей записи'}
+    else{n++;
+      if(pv){const dd=r1(raw-pv.v);const nd=days(pv.date,S.date);
+        c=`пред. <b>${fmt(pv.v)}</b> · ${dm(pv.date)}<span>${m.main?`разница <b>${fmt1(dd)}</b> × ${KT} =`:'расход'} <b class="kwh">${fmt(m.main?dd*KT:dd)} кВт·ч</b>${nd>0?' за '+daysWord(nd):''}</span>`;
+        if(dd<0){w=`<div class="c-warn err">Меньше предыдущих показаний (${fmt(pv.v)}). Проверь цифры: пропущенная или лишняя цифра?</div>`;bad=true}
+        else{const ur=usualRate(S.date,m.id);
+          if(ur&&nd>0&&dd/nd>ur*2.5)w=`<div class="c-warn warn">Расход в ${fmt1(dd/nd/ur)} раза выше обычного. Проверь показания.</div>`}}
+      else c='первые показания, расход появится со следующей записи';}
+    calc.innerHTML=c;warn.innerHTML=w;card.classList.toggle('filled',raw!=null&&!bad);card.classList.toggle('bad',bad);
+  });
+  const st=document.getElementById('recState');
+  st.className='rec-state'+(n===METERS.length?' full':n?' part':'');
+  st.textContent=n===METERS.length?'Все 5 введены':n?`Введено ${n} из ${METERS.length}`:(S.rec[S.date]?'Запись':'Новая запись');
+  const pf=prevFull(S.date);
+  document.getElementById('prevLine').textContent=pf?`Расход считается от показаний ${dmy(pf)} (${daysWord(days(pf,S.date))} назад).`:'Это первая запись: расход посчитается со следующего снятия.';
+  document.getElementById('sumBox').innerHTML=summaryHtml(period(S.date),n);
+}
+function summaryHtml(p,n){
+  if(!p)return `<h2>Расход за период</h2><p class="muted">${n<METERS.length?'Заполни все 5 счетчиков, и здесь появится расход по каждому гаражу и картинка для Елены.':'Нужна предыдущая полная запись, чтобы посчитать расход.'}</p>`;
+  if(p.bad.length)return `<h2>Расход за период</h2><div class="c-warn err">Отрицательный расход (${p.bad.join(", ")}). Исправь показания, и появится расчет и картинка для Елены.</div>`;
+  return `<h2>Расход за период</h2>
+    <p class="muted">${dmy(p.prevDate)} → ${dmy(p.date)} · ${daysWord(p.days)}</p>
+    ${sumTable(p)}
+    <button class="btn primary big" data-act="receipt" data-d="${p.date}">Картинка для Елены</button>`;
+}
+function sumTable(p){
+  const neg=p.diff<0;
+  return `<div class="sumtab">
+    ${GARAGES.map(g=>`<div class="s-row"><span class="nm">${g.name}${g.hint?`<small>${g.hint(p.d)}</small>`:''}</span><span class="v">${fmt(p.g[g.id])}</span></div>`).join('')}
+    <div class="s-row tot"><span class="nm">Итого по гаражам, кВт·ч</span><span class="v">${fmt(p.sum)}</span></div>
+    <div class="s-row"><span class="nm">Главный счетчик × ${KT}<small>разница ${fmt1(p.d.main)}</small></span><span class="v">${fmt(p.mainKwh)}</span></div>
+    <div class="s-row dif${neg?' neg':''}"><span class="nm">Разница (потери)${neg?'<small>Главный меньше суммы гаражей: показания сняты не одновременно или ошибка</small>':''}</span><span class="v">${fmt(p.diff)} · ${fmt1(p.pct)} %</span></div>
+  </div>`;
+}
+
+/* ---------- вкладка «История» ---------- */
+function renderHist(){
+  const ds=sortedDates().reverse();
+  if(!ds.length)return `${backupNudge()}<section class="panel"><div class="empty"><b>Пока пусто</b>Введи показания на вкладке «Показания».</div></section>`;
+  const rows=ds.map(d=>{const r=S.rec[d];const p=period(d);const full=isFull(r);
+    const conf=S.confirmDel===d;
+    let body;
+    if(p&&p.bad.length)body=`<div class="c-warn err">Отрицательный расход (${p.bad.join(", ")}). Открой запись и проверь показания.</div>`;
+    else if(p)body=`<div class="h-grid">${GARAGES.map(g=>`<div class="h-cell"><span>${g.name}</span><b>${fmt(p.g[g.id])}</b></div>`).join('')}</div>
+      <div class="h-foot">Итого гаражи <b>${fmt(p.sum)}</b> · главный <b>${fmt(p.mainKwh)}</b> · разница <b>${fmt(p.diff)}</b> кВт·ч</div>`;
+    else if(full)body=`<div class="h-foot">Начальные показания: расход от них считается в следующей записи.</div>`;
+    else body=`<div class="h-foot">Заполнено ${METERS.filter(m=>typeof r.v[m.id]==='number').length} из ${METERS.length} счетчиков.</div>`;
+    return `<div class="h-row">
+      <div class="h-top"><b>${dmy(d)}</b><span>${p?`за ${daysWord(p.days)} с ${dm(p.prevDate)}, кВт·ч`:full?'начальная запись':'не заполнено'}</span></div>
+      ${body}${r.note?`<div class="h-foot">📝 ${esc(r.note)}</div>`:''}
+      <div class="c-actions">
+        <button class="btn" data-act="open" data-d="${d}">Открыть</button>
+        ${p&&!p.bad.length?`<button class="btn primary" data-act="receipt" data-d="${d}">Картинка</button>`:''}
+        ${conf?`<button class="btn danger solid" data-act="delYes" data-d="${d}">Да, удалить</button><button class="btn" data-act="delNo">Отмена</button>`:`<button class="btn danger" data-act="del" data-d="${d}">Удалить</button>`}
+      </div></div>`}).join('');
+  return `${backupNudge()}<section class="panel"><h2>История снятия показаний</h2><div class="hist">${rows}</div></section>`;
+}
+
+/* ---------- вкладка «Данные» ---------- */
+function renderData(){
+  return `<section class="panel"><h2>Как считается</h2>
+    <ol class="scheme">
+      <li><b>Главный счетчик</b> включен через трансформаторы тока: расход = (текущие − предыдущие) × ${KT}.</li>
+      <li><b>Яковлев</b> и <b>Такранов</b> — каждый по своему счетчику.</li>
+      <li>Счетчик <b>«Клюев»</b> общий на Клюева и Андронова. У Андронова свой подсчетчик внутри него, поэтому Клюев = «Клюев» − «Андронов».</li>
+      <li><b>Итого по гаражам</b> = Яковлев + Такранов + «Клюев» (общий). <b>Разница</b> = главный × ${KT} − итого по гаражам: потери и то, что не проходит через гаражные счетчики.</li>
+    </ol>
+    <p class="muted">Деньги здесь не считаются: Елена получает показания и расход в кВт·ч и начисляет сама.</p></section>
+  ${backupPanel()}`;
+}
+function lastBackup(){try{return localStorage.getItem(LS_BACKUP)}catch(e){return null}}
+function markBackup(){try{localStorage.setItem(LS_BACKUP,todayStr())}catch(e){}}
+function backupNudge(){const lb=lastBackup();if(!sortedDates().length)return '';
+  if(lb&&days(lb,todayStr())<35)return '';
+  return `<div class="notice">${lb?'Последняя резервная копия '+dmy(lb)+'. ':'Резервной копии еще нет. '}Сохрани ее на вкладке «Данные», чтобы не потерять историю.</div>`}
+function backupPanel(){const lb=lastBackup();
+  return `<section class="panel"><h2>Резервная копия</h2>
+    <p class="muted">Все показания хранятся только на этом телефоне. После каждого снятия сохраняй копию в «Файлы» или iCloud Drive. ${lb?'Последняя копия: '+dmy(lb)+'.':'Копий еще не было.'}</p>
+    <div class="c-actions"><button class="btn primary" data-act="export">Сохранить копию</button>
+    <label class="btn" for="importIn" style="display:inline-flex;align-items:center">Восстановить из файла</label>
+    <input type="file" id="importIn" accept="application/json,.json" hidden></div>
+    <p class="muted" id="backupMsg" aria-live="polite"></p></section>`}
+async function exportData(){
+  const name='garages-backup-'+todayStr()+'.json';
+  const data=JSON.stringify({app:'garages-meters',version:1,exportedAt:new Date().toISOString(),readings:S.rec},null,1);
+  const file=new File([data],name,{type:'application/json'});
+  const msg=t=>{const el=document.getElementById('backupMsg');if(el)el.textContent=t};
+  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});markBackup();msg('Копия передана. Выбери «Сохранить в Файлы», если еще не сохранил.');return}}
+  catch(e){if(e&&e.name==='AbortError'){msg('Сохранение отменено.');return}}
+  const url=URL.createObjectURL(file);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);markBackup();msg('Файл '+name+' сохранен в загрузки.');
+}
+async function importData(f){
+  const msg=t=>{const el=document.getElementById('backupMsg');if(el)el.textContent=t};
+  try{const obj=JSON.parse(await f.text());const rs=obj&&obj.readings;
+    if(!rs||typeof rs!=='object'||Array.isArray(rs))throw new Error('bad');
+    let added=0,updated=0;
+    for(const [d,r] of Object.entries(rs)){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!r||typeof r!=='object'||!r.v||typeof r.v!=='object')continue;
+      const v={};METERS.forEach(m=>{if(typeof r.v[m.id]==='number'&&isFinite(r.v[m.id]))v[m.id]=r.v[m.id]});
+      const clean={date:d,v,note:typeof r.note==='string'?r.note:'',updatedAt:r.updatedAt||''};
+      const cur=S.rec[d];
+      if(!cur){S.rec[d]=clean;added++}else if((clean.updatedAt||'')>(cur.updatedAt||'')){S.rec[d]=clean;updated++}}
+    saveLocal();try{localStorage.setItem(LS_SEED,'1')}catch(e){}render();
+    msg(`Восстановлено: новых записей ${added}, обновлено ${updated}.`);
+  }catch(e){msg('Не получилось прочитать файл. Выбери файл копии вида garages-backup-ГГГГ-ММ-ДД.json.')}
+}
+
+/* ---------- картинка для Елены ---------- */
+async function loadFonts(){
+  if(!document.fonts||!document.fonts.load)return;
+  const t=new Promise(r=>setTimeout(r,1500));
+  try{await Promise.race([Promise.all(['600 40px "Oswald"','500 30px "Golos Text"','600 30px "Golos Text"','600 30px "JetBrains Mono"','500 30px "JetBrains Mono"'].map(f=>document.fonts.load(f,'0123 АБВ'))),t])}catch(e){}
+}
+function drawReceipt(p){
+  const W=1080,P=64;const C={ink:'#121A22',muted:'#5A6774',line:'#D4DBE2',soft:'#F5F7F9',accent:'#2457C5',good:'#1D8048',danger:'#BE3329'};
+  const FD='"Oswald","Arial Narrow",Arial,sans-serif',FB='"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif',FN='"JetBrains Mono",Menlo,Consolas,monospace';
+  const noteLines=p.note?wrap(p.note,W-2*P-40,'400 28px '+FB):[];
+  const H=2200+(noteLines.length?noteLines.length*40+60:0);
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d');
+  x.fillStyle='#FFFFFF';x.fillRect(0,0,W,H);x.fillStyle=C.accent;x.fillRect(0,0,W,14);
+  x.textBaseline='alphabetic';
+  let y=110;
+  x.fillStyle=C.muted;x.font='600 24px '+FB;sp(x,'ЭЛЕКТРОЭНЕРГИЯ · ГАРАЖИ',P,y,2);
+  y+=72;x.fillStyle=C.ink;x.font='600 60px '+FD;x.fillText('Показания на '+dmy(p.date),P,y);
+  y+=50;x.fillStyle=C.muted;x.font='400 30px '+FB;x.fillText('Период: '+dmy(p.prevDate)+' – '+dmy(p.date)+' · '+daysWord(p.days),P,y);
+
+  // таблица 1
+  y+=80;x.fillStyle=C.muted;x.font='600 22px '+FB;sp(x,'ПОКАЗАНИЯ СЧЕТЧИКОВ',P,y,1.5);
+  const c1=640,c2=830,c3=W-P;
+  y+=46;x.font='500 24px '+FB;x.fillStyle=C.muted;x.fillText('Счетчик',P,y);rt(x,'Было',c1,y);rt(x,'Стало',c2,y);rt(x,'Разница',c3,y);
+  y+=20;hl(x,P,W-P,y,C.ink,2);
+  METERS.forEach(m=>{
+    const sub=m.main?'КТ '+KT:m.id==='klu'?'общий: Клюев + Андронов':m.id==='and'?'подсчетчик':'';
+    const top=y;y+=48;
+    x.fillStyle=C.ink;x.font='600 30px '+FB;x.fillText(m.name,P,y);
+    x.font='500 29px '+FN;rt(x,fmt(p.prev[m.id]),c1,y);rt(x,fmt(p.cur[m.id]),c2,y);
+    x.font='600 29px '+FN;rt(x,m.main?fmt1(p.d.main):fmt(p.d[m.id]),c3,y);
+    if(sub||m.main){y+=34;x.font='400 23px '+FB;x.fillStyle=C.muted;if(sub)x.fillText(sub,P,y);
+      if(m.main){x.font='500 23px '+FN;x.fillStyle=C.good;rt(x,'× '+KT+' = '+fmt(p.mainKwh)+' кВт·ч',c3,y)}}
+    y+=22;hl(x,P,W-P,y,C.line,1.5);
+  });
+
+  // таблица 2
+  y+=72;x.fillStyle=C.muted;x.font='600 22px '+FB;sp(x,'РАСХОД ПО ГАРАЖАМ, кВт·ч',P,y,1.5);
+  y+=20;hl(x,P,W-P,y,C.ink,2);
+  GARAGES.forEach(g=>{y+=52;x.fillStyle=C.ink;x.font='600 32px '+FB;x.fillText(g.name,P,y);
+    x.font='600 34px '+FN;rt(x,fmt(p.g[g.id]),c3,y);
+    if(g.hint){y+=34;x.font='400 23px '+FB;x.fillStyle=C.muted;x.fillText(g.hint(p.d),P,y)}
+    y+=22;hl(x,P,W-P,y,C.line,1.5)});
+  y+=8;x.fillStyle=C.soft;x.fillRect(P,y,W-2*P,186);
+  const L=P+24,R=W-P-24;
+  y+=52;x.fillStyle=C.ink;x.font='600 30px '+FB;x.fillText('Итого по гаражам',L,y);x.font='600 32px '+FN;rt(x,fmt(p.sum),R,y);
+  y+=56;x.font='500 28px '+FB;x.fillStyle=C.ink;x.fillText('Главный счетчик × '+KT,L,y);x.font='500 30px '+FN;rt(x,fmt(p.mainKwh),R,y);
+  y+=52;x.font='500 28px '+FB;x.fillStyle=p.diff<0?C.danger:C.muted;x.fillText('Разница (потери)',L,y);x.font='500 28px '+FN;rt(x,fmt(p.diff)+'  ·  '+fmt1(p.pct)+' %',R,y);
+  y+=26;
+  if(noteLines.length){y+=60;x.fillStyle=C.muted;x.font='600 22px '+FB;sp(x,'ПРИМЕЧАНИЕ',P,y,1.5);x.fillStyle=C.ink;x.font='400 28px '+FB;
+    noteLines.forEach(l=>{y+=40;x.fillText(l,P,y)})}
+  y+=56;x.fillStyle=C.muted;x.font='400 22px '+FB;x.fillText('Расход Клюева = общий счетчик «Клюев» − подсчетчик Андронова',P,y);
+  y+=44;
+  // обрезаем холст по содержимому
+  const out=document.createElement('canvas');out.width=W;out.height=Math.ceil(y);out.getContext('2d').drawImage(cv,0,0);return out;
+  function rt(c,t,xx,yy){c.textAlign='right';c.fillText(t,xx,yy);c.textAlign='left'}
+  function hl(c,a,b,yy,col,w){c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(a,yy);c.lineTo(b,yy);c.stroke()}
+  function sp(c,t,xx,yy,ls){let cx=xx;for(const ch of t){c.fillText(ch,cx,yy);cx+=c.measureText(ch).width+ls}}
+  function wrap(t,maxW,font){const c=document.createElement('canvas').getContext('2d');c.font=font;const out=[];
+    t.split(/\n/).forEach(par=>{let line='';par.split(/\s+/).forEach(w=>{const tt=line?line+' '+w:w;if(c.measureText(tt).width>maxW&&line){out.push(line);line=w}else line=tt});if(line)out.push(line)});return out.slice(0,6)}
+}
+async function openReceipt(date){
+  const p=period(date);if(!p||p.bad.length)return;
+  S.receipt=date;S.tabBefore=S.tab;view.innerHTML=`<section class="panel"><p class="muted">Готовлю картинку…</p></section>`;window.scrollTo({top:0});
+  await loadFonts();
+  const cv=drawReceipt(p);
+  const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+  if(S.pngUrl)URL.revokeObjectURL(S.pngUrl);
+  S.png=new File([blob],'garazhi-'+date+'.png',{type:'image/png'});S.pngUrl=URL.createObjectURL(blob);
+  if(S.receipt!==date)return;
+  view.innerHTML=`<section class="panel">
+      <h2>Картинка для Елены</h2>
+      <p class="muted">${dmy(p.prevDate)} → ${dmy(p.date)}. Нажми «Отправить» и выбери мессенджер или «Сохранить изображение».</p>
+      <button class="btn primary big" data-act="share">Отправить</button>
+      <img class="receipt-img" src="${S.pngUrl}" alt="Показания и расход по гаражам на ${dmy(p.date)}">
+      <div class="c-actions"><a class="btn" href="${S.pngUrl}" download="${S.png.name}">Скачать PNG</a><button class="btn" data-act="back">Назад</button></div>
+      <p class="muted" id="shareMsg" aria-live="polite"></p>
+    </section>`;
+}
+async function sharePng(){
+  const msg=t=>{const el=document.getElementById('shareMsg');if(el)el.textContent=t};
+  if(!S.png)return;
+  try{if(navigator.canShare&&navigator.canShare({files:[S.png]})){await navigator.share({files:[S.png]});msg('');return}}
+  catch(e){if(e&&e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=S.pngUrl;a.download=S.png.name;document.body.appendChild(a);a.click();a.remove();
+  msg('Картинка сохранена в загрузки. Отправь ее Елене из мессенджера.');
+}
+
+/* ---------- отрисовка и события ---------- */
+const view=document.getElementById('view');
+function render(){
+  S.receipt=null;
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===S.tab)));
+  view.innerHTML=S.tab==='log'?renderLog():S.tab==='hist'?renderHist():renderData();
+  if(S.tab==='log')updateCalc();
+}
+function switchDate(d){if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;S.date=d;S.confirmDel=null}
+function writeField(id,val){
+  const r=S.rec[S.date]||{date:S.date,v:{},note:''};
+  if(id==='note')r.note=val;else if(val==null)delete r.v[id];else r.v[id]=val;
+  r.updatedAt=new Date().toISOString();
+  if(!Object.keys(r.v).length&&!r.note)delete S.rec[S.date];else S.rec[S.date]=r;
+  saveLocal();
+}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-tab]');if(!b)return;
+  S.tab=b.dataset.tab;S.confirmDel=null;render();window.scrollTo({top:0})});
+view.addEventListener('input',e=>{const t=e.target;
+  if(t.dataset.m){const v=parseNum(t.value);if(!Number.isNaN(v))writeField(t.dataset.m,v);updateCalc()}
+  else if(t.id==='noteIn')writeField('note',t.value.trim()?t.value:'');
+});
+view.addEventListener('keydown',e=>{const t=e.target;if(e.key==='Enter'&&t.dataset.m){e.preventDefault();const i=METERS.findIndex(m=>m.id===t.dataset.m);
+  const nx=METERS[i+1];if(nx)document.getElementById('in-'+nx.id).focus();else t.blur()}});
+view.addEventListener('change',e=>{const t=e.target;
+  if(t.id==='dateIn'){switchDate(t.value||todayStr());render()}
+  else if(t.id==='importIn'&&t.files&&t.files[0])importData(t.files[0]);
+  else if(t.dataset.m){const v=parseNum(t.value);if(v!=null&&!Number.isNaN(v))t.value=fmt(v)}
+});
+view.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
+  if(act==='receipt'){openReceipt(b.dataset.d);return}
+  if(act==='share'){sharePng();return}
+  if(act==='back'){render();window.scrollTo({top:0});return}
+  if(act==='open'){switchDate(b.dataset.d);S.tab='log';render();window.scrollTo({top:0});return}
+  if(act==='del'){S.confirmDel=b.dataset.d;render();return}
+  if(act==='delNo'){S.confirmDel=null;render();return}
+  if(act==='delYes'){delete S.rec[b.dataset.d];S.confirmDel=null;saveLocal();render();return}
+  if(act==='export'){exportData();return}
+});
+(function(){
+  S.rec=loadLocal();
+  let seeded=null;try{seeded=localStorage.getItem(LS_SEED)}catch(e){}
+  if(!seeded&&!Object.keys(S.rec).length){
+    for(const [d,v] of Object.entries(SEED))S.rec[d]={date:d,v:{...v},note:'',updatedAt:'2026-10-26T00:00:00.000Z'};
+    saveLocal();try{localStorage.setItem(LS_SEED,'1')}catch(e){}
+  }
+  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  render();setSave('ok');
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+})();
+</script>
+</body>
+</html>
