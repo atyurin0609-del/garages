@@ -1,4 +1,4 @@
-const V = 'garages-v1';
+const V = 'garages-v2';
 const FONTS = 'garages-fonts';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 

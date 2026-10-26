@@ -116,6 +116,18 @@ input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
 .h-foot b{font-family:var(--f-num);color:var(--ink);font-weight:600}
 .empty{text-align:center;padding:22px 14px;color:var(--muted);font-size:14px}
 .empty b{display:block;color:var(--ink);font-family:var(--f-display);font-weight:500;font-size:18px;margin-bottom:4px}
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:6px}
+.sec-h span{font-size:12px;color:var(--muted);font-weight:600}
+.reg{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px dashed var(--line)}
+.reg:first-of-type{border-top:0;padding-top:0}
+.reg.filled .field>span{color:var(--good)} .reg.bad .field>span{color:var(--danger)}
+.c-actions.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.c-actions.two .btn.big{font-size:15px;padding:14px 8px}
+.h-own{font-size:12px;color:var(--muted);line-height:1.6}
+.h-own b{font-family:var(--f-num);color:var(--ink);font-weight:600}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{font:600 14px var(--f-body);border:0;border-radius:8px;padding:9px;background:transparent;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .receipt-img{width:100%;height:auto;display:block;border-radius:10px;border:1px solid var(--line);background:#fff}
 .scheme{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 .scheme b{font-weight:600}
@@ -145,13 +157,29 @@ input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
 <script>
 /* ---------- схема учета ---------- */
 const KT = 40; // коэффициент трансформации главного счетчика
+// основные потребители: главный счетчик и гаражи за ним
 const METERS = [
-  {id:'main', num:'1', name:'Главный счетчик', sub:'КТ '+KT+': расход = разница × '+KT, main:true},
+  {id:'main', num:'1', name:'Главный счетчик', sub:'КТ '+KT+': расход = разница × '+KT, main:true, kt:KT},
   {id:'yak',  num:'2', name:'Яковлев К.М.', sub:'свой счетчик'},
   {id:'tak',  num:'3', name:'Такранов А.И.', sub:'свой счетчик'},
   {id:'klu',  num:'4', name:'Клюев А.В.', sub:'общий: Клюев + Андронов'},
   {id:'and',  num:'5', name:'Андронов (Е.В.)', sub:'подсчетчик внутри «Клюева»'},
 ];
+// личные счетчики: каждый сам по себе, расход = разница × КТ
+const OWN = [
+  {id:'as',   num:'1', name:'Андрей/Сергей'},
+  {id:'puh',  num:'2', name:'Пухов'},
+  {id:'gol',  num:'3', name:'Голованов'},
+  {id:'sun',  num:'4', name:'Сундуков'},
+  {id:'rom',  num:'5', name:'Роман', kt:30, sub:'КТ 30: расход = разница × 30'},
+  {id:'star', num:'6', name:'Стародубцев'},
+  {id:'val',  num:'7', name:'Валера'},
+  {id:'t1',   num:'8', name:'Т1', reg:true},
+  {id:'t2',   num:'8', name:'Т2', reg:true},
+  {id:'tot',  num:'8', name:'Общий', reg:true},
+];
+const ALL = METERS.concat(OWN);
+const REG_TITLE = 'Счетчик Т1 / Т2';
 const GARAGES = [
   {id:'yak', name:'Яковлев К.М.', calc:d=>d.yak},
   {id:'tak', name:'Такранов А.И.', calc:d=>d.tak},
@@ -164,7 +192,12 @@ const SEED = {
   '2026-09-02':{main:4217.9, yak:265758, tak:121122.7, klu:58731.1, and:25615.8},
   '2026-09-24':{main:4249.9, yak:265962, tak:121651.6, klu:59267.3, and:25790.9},
 };
-const LS_REC='gar-readings', LS_BACKUP='gar-backup', LS_SEED='gar-seeded';
+const SEED_OWN = {
+  '2026-07-21':{as:23057.9, puh:4572.9, gol:4483.7, sun:7130.9, rom:9001.8, star:908.5, val:7223.3, t1:9790.58, t2:8014.50},
+  '2026-09-02':{as:23064.1, puh:4589.1, gol:4498.3, sun:7133.1, rom:9041.4, star:910.0, val:7223.3, t1:9792.8, t2:8015.18},
+  '2026-09-24':{as:23067.4, puh:4591.4, gol:4503.5, sun:7134.6, rom:9071.3, star:910.2, val:7223.3, t1:9793.49},
+};
+const LS_REC='gar-readings', LS_BACKUP='gar-backup', LS_SEED='gar-seeded', LS_SEED_OWN='gar-seeded-own';
 const WD = ['вс','пн','вт','ср','чт','пт','сб'];
 
 const S = {rec:{}, tab:'log', date:todayStr(), confirmDel:null, receipt:null, png:null, pngUrl:null};
@@ -176,13 +209,15 @@ function dm(s){const [,m,d]=s.split('-');return d+'.'+m}
 function wd(s){return WD[new Date(s+'T12:00').getDay()]}
 function days(a,b){return Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5)}
 function daysWord(n){const a=Math.abs(n)%100,b=a%10;if(a>10&&a<20)return n+' дней';if(b===1)return n+' день';if(b>=2&&b<=4)return n+' дня';return n+' дней'}
-function r1(x){return Math.round(x*10)/10}
-function fmt(x){if(x==null||x===''||!isFinite(x))return '';const v=r1(x);return (Number.isInteger(v)?String(v):v.toFixed(1)).replace('.',',').replace('-','−')}
-function fmt1(x){if(x==null||!isFinite(x))return '';return r1(x).toFixed(1).replace('.',',').replace('-','−')}
+function r1(x){return Math.round(x*100)/100} // до сотых: у Т1/Т2 два знака после запятой
+function fmt(x){if(x==null||x===''||!isFinite(x))return '';const v=r1(x);return (Number.isInteger(v)?String(v):v.toFixed(2).replace(/0$/,'')).replace('.',',').replace('-','−')}
+function fmt1(x){if(x==null||!isFinite(x))return '';return (Math.round(x*10)/10).toFixed(1).replace('.',',').replace('-','−')}
 function parseNum(s){s=String(s||'').replace(/\s/g,'').replace(',','.');if(s==='')return null;const v=Number(s);return isFinite(v)&&v>=0?v:NaN}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function sortedDates(){return Object.keys(S.rec).sort()}
-function isFull(r){return !!r&&METERS.every(m=>typeof r.v[m.id]==='number')}
+function isFull(r){return !!r&&METERS.every(m=>typeof r.v[m.id]==='number')} // полная = все 5 основных
+function has(r,id){return !!r&&typeof r.v[id]==='number'}
+function kwhOf(m,dd){return dd*(m.kt||1)}
 
 /* ---------- хранение ---------- */
 function saveLocal(){try{localStorage.setItem(LS_REC,JSON.stringify(S.rec));setSave('ok');return true}
@@ -203,27 +238,47 @@ function period(date){
   const sum=r1(d.yak+d.tak+d.klu);
   const diff=r1(mainKwh-sum);
   const bad=METERS.filter(m=>d[m.id]<0).map(m=>m.name).concat(g.klu<0?['Клюев А.В. (общий меньше Андронова)']:[]);
-  return {date,prevDate:pd,days:days(pd,date),cur:cur.v,prev:prev.v,d,mainKwh,g,sum,diff,pct:mainKwh?diff/mainKwh*100:0,note:cur.note||'',bad};
+  const own=ownPeriod(date);
+  return {date,prevDate:pd,days:days(pd,date),cur:cur.v,prev:prev.v,d,mainKwh,g,sum,diff,pct:mainKwh?diff/mainKwh*100:0,note:cur.note||'',bad,
+    own,ownBad:own.filter(o=>o.bad).map(o=>o.m.reg?REG_TITLE+' '+o.m.name:o.m.name)};
 }
+// личные: каждый счетчик от своего предыдущего показания
+function ownPeriod(date){
+  const cur=S.rec[date];
+  return OWN.map(m=>{const pv=prevFor(date,m.id);const c=has(cur,m.id)?cur.v[m.id]:null;
+    const o={m,cur:c,prev:pv?pv.v:null,prevDate:pv?pv.date:null,d:null,kwh:null,bad:false};
+    if(c!=null&&pv){o.d=r1(c-pv.v);o.kwh=r1(kwhOf(m,o.d));o.bad=o.d<0}
+    return o});
+}
+function hasOwn(r){return !!r&&OWN.some(m=>has(r,m.id))}
 // обычный суточный расход счетчика по прошлым периодам (медиана)
 function usualRate(date,id){
-  const ds=sortedDates().filter(d=>d<date&&isFull(S.rec[d]));const rates=[];
+  const ds=sortedDates().filter(d=>d<date&&has(S.rec[d],id));const rates=[];
   for(let i=1;i<ds.length;i++){const n=days(ds[i-1],ds[i]);if(n>0)rates.push((S.rec[ds[i]].v[id]-S.rec[ds[i-1]].v[id])/n)}
   if(rates.length<2)return null;rates.sort((a,b)=>a-b);const k=rates.length>>1;return rates.length%2?rates[k]:(rates[k-1]+rates[k])/2;
 }
 
 /* ---------- вкладка «Показания» ---------- */
 function curRec(){return S.rec[S.date]||{date:S.date,v:{},note:''}}
-function renderLog(){
-  const r=curRec();const exists=!!S.rec[S.date];
-  const cards=METERS.map(m=>{const pv=prevFor(S.date,m.id);const val=r.v[m.id];
-    return `<li class="card${m.main?' main':''}" id="card-${m.id}">
-      <div class="c-head"><div class="num">${m.num}</div><div class="c-title"><strong>${m.name}</strong><span class="c-meta">${m.sub}</span></div></div>
-      <input class="c-in" id="in-${m.id}" data-m="${m.id}" inputmode="decimal" autocomplete="off" enterkeyhint="next" aria-label="Показания: ${m.name}"
-        placeholder="${pv?fmt(pv.v):'показания'}" value="${val!=null?fmt(val):''}">
+function inputHtml(m,r,cls){const pv=prevFor(S.date,m.id);const val=r.v[m.id];
+  return `<input class="${cls}" id="in-${m.id}" data-m="${m.id}" inputmode="decimal" autocomplete="off" enterkeyhint="next" aria-label="Показания: ${m.reg?REG_TITLE+', '+m.name:m.name}"
+        placeholder="${pv?fmt(pv.v):'показания'}" value="${val!=null?fmt(val):''}">`}
+function cardHtml(m,r){
+  return `<li class="card${m.main?' main':''}" id="card-${m.id}">
+      <div class="c-head"><div class="num">${m.num}</div><div class="c-title"><strong>${m.name}</strong>${m.sub?`<span class="c-meta">${m.sub}</span>`:''}</div></div>
+      ${inputHtml(m,r,'c-in')}
       <div class="c-calc" id="calc-${m.id}"></div>
       <div id="warn-${m.id}"></div>
-    </li>`}).join('');
+    </li>`}
+function regCardHtml(r){const regs=OWN.filter(m=>m.reg);
+  return `<li class="card"><div class="c-head"><div class="num">${regs[0].num}</div><div class="c-title"><strong>${REG_TITLE}</strong><span class="c-meta">двухтарифный: заполняй те регистры, что видны на табло</span></div></div>
+      ${regs.map(m=>`<div class="reg" id="card-${m.id}"><label class="field"><span>${m.name}</span>${inputHtml(m,r,'c-in')}</label>
+        <div class="c-calc" id="calc-${m.id}"></div><div id="warn-${m.id}"></div></div>`).join('')}
+    </li>`}
+function renderLog(){
+  const r=curRec();const exists=!!S.rec[S.date];
+  const main=METERS.map(m=>cardHtml(m,r)).join('');
+  const own=OWN.filter(m=>!m.reg).map(m=>cardHtml(m,r)).join('')+regCardHtml(r);
   return `<section class="panel">
       <div class="day-row">
         <label class="field"><span>Дата снятия · ${wd(S.date)}</span><input type="date" id="dateIn" value="${S.date}"></label>
@@ -231,7 +286,10 @@ function renderLog(){
       </div>
       <p class="muted" id="prevLine"></p>
     </section>
-    <ul class="mlist">${cards}</ul>
+    <div class="sec-h"><h2>Основные потребители</h2><span id="cntMain"></span></div>
+    <ul class="mlist">${main}</ul>
+    <div class="sec-h"><h2>Личные</h2><span id="cntOwn"></span></div>
+    <ul class="mlist">${own}</ul>
     <section class="panel" id="sumBox"></section>
     <section class="panel">
       <label class="field"><span>Заметка</span><textarea id="noteIn" placeholder="Например: у Такранова заменили счетчик, снимал вечером">${esc(r.note||'')}</textarea></label>
@@ -241,16 +299,16 @@ function renderLog(){
     </section>`;
 }
 function updateCalc(){
-  const r=curRec();let n=0;
-  METERS.forEach(m=>{
-    const inp=document.getElementById('in-'+m.id);const raw=parseNum(inp.value);
+  let nm=0,no=0;
+  ALL.forEach(m=>{
+    const inp=document.getElementById('in-'+m.id);const raw=parseNum(inp.value);const isMain=METERS.includes(m);
     const pv=prevFor(S.date,m.id);const calc=document.getElementById('calc-'+m.id);const warn=document.getElementById('warn-'+m.id);const card=document.getElementById('card-'+m.id);
     let c='',w='',bad=false;
     if(Number.isNaN(raw)){w=`<div class="c-warn err">Не похоже на число. Вводи цифры, дробную часть через запятую.</div>`;bad=true}
     else if(raw==null){c=pv?`пред. <b>${fmt(pv.v)}</b> · ${dmy(pv.date)}`:'первые показания, расход появится со следующей записи'}
-    else{n++;
+    else{if(isMain)nm++;else no++;
       if(pv){const dd=r1(raw-pv.v);const nd=days(pv.date,S.date);
-        c=`пред. <b>${fmt(pv.v)}</b> · ${dm(pv.date)}<span>${m.main?`разница <b>${fmt1(dd)}</b> × ${KT} =`:'расход'} <b class="kwh">${fmt(m.main?dd*KT:dd)} кВт·ч</b>${nd>0?' за '+daysWord(nd):''}</span>`;
+        c=`пред. <b>${fmt(pv.v)}</b> · ${dm(pv.date)}<span>${m.kt?`разница <b>${fmt(dd)}</b> × ${m.kt} =`:'расход'} <b class="kwh">${fmt(kwhOf(m,dd))} кВт·ч</b>${nd>0?' за '+daysWord(nd):''}</span>`;
         if(dd<0){w=`<div class="c-warn err">Меньше предыдущих показаний (${fmt(pv.v)}). Проверь цифры: пропущенная или лишняя цифра?</div>`;bad=true}
         else{const ur=usualRate(S.date,m.id);
           if(ur&&nd>0&&dd/nd>ur*2.5)w=`<div class="c-warn warn">Расход в ${fmt1(dd/nd/ur)} раза выше обычного. Проверь показания.</div>`}}
@@ -258,19 +316,33 @@ function updateCalc(){
     calc.innerHTML=c;warn.innerHTML=w;card.classList.toggle('filled',raw!=null&&!bad);card.classList.toggle('bad',bad);
   });
   const st=document.getElementById('recState');
-  st.className='rec-state'+(n===METERS.length?' full':n?' part':'');
-  st.textContent=n===METERS.length?'Все 5 введены':n?`Введено ${n} из ${METERS.length}`:(S.rec[S.date]?'Запись':'Новая запись');
+  st.className='rec-state'+(nm===METERS.length?' full':nm||no?' part':'');
+  st.textContent=nm===METERS.length?'Основные введены':nm||no?`Основные ${nm} из ${METERS.length}`:(S.rec[S.date]?'Запись':'Новая запись');
+  document.getElementById('cntMain').textContent=`${nm} из ${METERS.length}`;
+  document.getElementById('cntOwn').textContent=`${no} из ${OWN.length}`;
   const pf=prevFull(S.date);
-  document.getElementById('prevLine').textContent=pf?`Расход считается от показаний ${dmy(pf)} (${daysWord(days(pf,S.date))} назад).`:'Это первая запись: расход посчитается со следующего снятия.';
-  document.getElementById('sumBox').innerHTML=summaryHtml(period(S.date),n);
+  document.getElementById('prevLine').textContent=pf?`Расход основных считается от показаний ${dmy(pf)} (${daysWord(days(pf,S.date))} назад).`:'Это первая запись: расход посчитается со следующего снятия.';
+  document.getElementById('sumBox').innerHTML=summaryHtml(period(S.date),nm);
 }
+function receiptBtns(p,big){
+  const cls=big?'btn primary big':'btn primary';
+  const all=hasOwn(S.rec[p.date])&&!p.ownBad.length;
+  return `<div class="c-actions${big?' two':''}"><button class="${cls}" data-act="receipt" data-mode="main" data-d="${p.date}">${big?'Картинка: основные':'Основные'}</button>${all?`<button class="${cls}" data-act="receipt" data-mode="all" data-d="${p.date}">${big?'Картинка: все':'Все'}</button>`:''}</div>`}
 function summaryHtml(p,n){
-  if(!p)return `<h2>Расход за период</h2><p class="muted">${n<METERS.length?'Заполни все 5 счетчиков, и здесь появится расход по каждому гаражу и картинка для Елены.':'Нужна предыдущая полная запись, чтобы посчитать расход.'}</p>`;
+  if(!p)return `<h2>Расход за период</h2><p class="muted">${n<METERS.length?'Заполни все 5 основных счетчиков, и здесь появится расход по каждому гаражу и картинки для Елены.':'Нужна предыдущая полная запись, чтобы посчитать расход.'}</p>`;
   if(p.bad.length)return `<h2>Расход за период</h2><div class="c-warn err">Отрицательный расход (${p.bad.join(", ")}). Исправь показания, и появится расчет и картинка для Елены.</div>`;
+  const own=hasOwn(S.rec[p.date]);
   return `<h2>Расход за период</h2>
     <p class="muted">${dmy(p.prevDate)} → ${dmy(p.date)} · ${daysWord(p.days)}</p>
     ${sumTable(p)}
-    <button class="btn primary big" data-act="receipt" data-d="${p.date}">Картинка для Елены</button>`;
+    ${own?`<h2 style="margin-top:6px">Личные, кВт·ч</h2>${p.ownBad.length?`<div class="c-warn err">Отрицательный расход (${p.ownBad.join(", ")}). Картинка «все» появится после исправления.</div>`:''}${ownTable(p)}`:''}
+    ${receiptBtns(p,true)}`;
+}
+function ownTable(p){
+  return `<div class="sumtab">${p.own.map(o=>{const nm=o.m.reg?REG_TITLE+' · '+o.m.name:o.m.name;
+    const sub=[o.m.kt&&o.d!=null?'разница '+fmt(o.d)+' × '+o.m.kt:'',o.prevDate&&o.cur!=null&&o.prevDate!==p.prevDate?'от показаний '+dmy(o.prevDate):''].filter(Boolean).join(' · ');
+    const v=o.cur==null?'<span class="muted">нет показаний</span>':o.kwh==null?'<span class="muted">первые</span>':fmt(o.kwh);
+    return `<div class="s-row${o.bad?' dif neg':''}"><span class="nm">${nm}${sub?`<small>${sub}</small>`:''}</span><span class="v">${v}</span></div>`}).join('')}</div>`;
 }
 function sumTable(p){
   const neg=p.diff<0;
@@ -293,13 +365,15 @@ function renderHist(){
     else if(p)body=`<div class="h-grid">${GARAGES.map(g=>`<div class="h-cell"><span>${g.name}</span><b>${fmt(p.g[g.id])}</b></div>`).join('')}</div>
       <div class="h-foot">Итого гаражи <b>${fmt(p.sum)}</b> · главный <b>${fmt(p.mainKwh)}</b> · разница <b>${fmt(p.diff)}</b> кВт·ч</div>`;
     else if(full)body=`<div class="h-foot">Начальные показания: расход от них считается в следующей записи.</div>`;
-    else body=`<div class="h-foot">Заполнено ${METERS.filter(m=>typeof r.v[m.id]==='number').length} из ${METERS.length} счетчиков.</div>`;
+    else body=`<div class="h-foot">Основные: заполнено ${METERS.filter(m=>has(r,m.id)).length} из ${METERS.length}.</div>`;
+    if(hasOwn(r)){const own=ownPeriod(d).filter(o=>o.kwh!=null);
+      if(own.length)body+=`<div class="h-own">Личные: ${own.map(o=>`${o.m.reg?o.m.name:o.m.name} <b>${fmt(o.kwh)}</b>`).join(' · ')}</div>`}
     return `<div class="h-row">
       <div class="h-top"><b>${dmy(d)}</b><span>${p?`за ${daysWord(p.days)} с ${dm(p.prevDate)}, кВт·ч`:full?'начальная запись':'не заполнено'}</span></div>
       ${body}${r.note?`<div class="h-foot">📝 ${esc(r.note)}</div>`:''}
       <div class="c-actions">
         <button class="btn" data-act="open" data-d="${d}">Открыть</button>
-        ${p&&!p.bad.length?`<button class="btn primary" data-act="receipt" data-d="${d}">Картинка</button>`:''}
+        ${p&&!p.bad.length?`<button class="btn primary" data-act="receipt" data-mode="main" data-d="${d}">Основные</button>${hasOwn(r)&&!p.ownBad.length?`<button class="btn primary" data-act="receipt" data-mode="all" data-d="${d}">Все</button>`:''}`:''}
         ${conf?`<button class="btn danger solid" data-act="delYes" data-d="${d}">Да, удалить</button><button class="btn" data-act="delNo">Отмена</button>`:`<button class="btn danger" data-act="del" data-d="${d}">Удалить</button>`}
       </div></div>`}).join('');
   return `${backupNudge()}<section class="panel"><h2>История снятия показаний</h2><div class="hist">${rows}</div></section>`;
@@ -313,7 +387,9 @@ function renderData(){
       <li><b>Яковлев</b> и <b>Такранов</b> — каждый по своему счетчику.</li>
       <li>Счетчик <b>«Клюев»</b> общий на Клюева и Андронова. У Андронова свой подсчетчик внутри него, поэтому Клюев = «Клюев» − «Андронов».</li>
       <li><b>Итого по гаражам</b> = Яковлев + Такранов + «Клюев» (общий). <b>Разница</b> = главный × ${KT} − итого по гаражам: потери и то, что не проходит через гаражные счетчики.</li>
+      <li><b>Личные</b> считаются каждый сам по себе: расход = разница показаний, у <b>Романа</b> × 30. С главным счетчиком не сверяются. Если показание пропущено, расход в следующий раз посчитается от последнего известного.</li>
     </ol>
+    <p class="muted">Картинка «Основные» — только главный и 4 гаража. Картинка «Все» — то же плюс личные.</p>
     <p class="muted">Деньги здесь не считаются: Елена получает показания и расход в кВт·ч и начисляет сама.</p></section>
   ${backupPanel()}`;
 }
@@ -346,7 +422,7 @@ async function importData(f){
     let added=0,updated=0;
     for(const [d,r] of Object.entries(rs)){
       if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!r||typeof r!=='object'||!r.v||typeof r.v!=='object')continue;
-      const v={};METERS.forEach(m=>{if(typeof r.v[m.id]==='number'&&isFinite(r.v[m.id]))v[m.id]=r.v[m.id]});
+      const v={};ALL.forEach(m=>{if(typeof r.v[m.id]==='number'&&isFinite(r.v[m.id]))v[m.id]=r.v[m.id]});
       const clean={date:d,v,note:typeof r.note==='string'?r.note:'',updatedAt:r.updatedAt||''};
       const cur=S.rec[d];
       if(!cur){S.rec[d]=clean;added++}else if((clean.updatedAt||'')>(cur.updatedAt||'')){S.rec[d]=clean;updated++}}
@@ -361,16 +437,17 @@ async function loadFonts(){
   const t=new Promise(r=>setTimeout(r,1500));
   try{await Promise.race([Promise.all(['600 40px "Oswald"','500 30px "Golos Text"','600 30px "Golos Text"','600 30px "JetBrains Mono"','500 30px "JetBrains Mono"'].map(f=>document.fonts.load(f,'0123 АБВ'))),t])}catch(e){}
 }
-function drawReceipt(p){
+function drawReceipt(p,mode){
+  const all=mode==='all';
   const W=1080,P=64;const C={ink:'#121A22',muted:'#5A6774',line:'#D4DBE2',soft:'#F5F7F9',accent:'#2457C5',good:'#1D8048',danger:'#BE3329'};
   const FD='"Oswald","Arial Narrow",Arial,sans-serif',FB='"Golos Text",-apple-system,"Segoe UI",Roboto,sans-serif',FN='"JetBrains Mono",Menlo,Consolas,monospace';
   const noteLines=p.note?wrap(p.note,W-2*P-40,'400 28px '+FB):[];
-  const H=2200+(noteLines.length?noteLines.length*40+60:0);
+  const H=2200+(all?OWN.length*100+260:0)+(noteLines.length?noteLines.length*40+60:0);
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d');
   x.fillStyle='#FFFFFF';x.fillRect(0,0,W,H);x.fillStyle=C.accent;x.fillRect(0,0,W,14);
   x.textBaseline='alphabetic';
   let y=110;
-  x.fillStyle=C.muted;x.font='600 24px '+FB;sp(x,'ЭЛЕКТРОЭНЕРГИЯ · ГАРАЖИ',P,y,2);
+  x.fillStyle=C.muted;x.font='600 24px '+FB;sp(x,all?'ЭЛЕКТРОЭНЕРГИЯ · ГАРАЖИ · ВСЕ СЧЕТЧИКИ':'ЭЛЕКТРОЭНЕРГИЯ · ГАРАЖИ · ОСНОВНЫЕ',P,y,2);
   y+=72;x.fillStyle=C.ink;x.font='600 60px '+FD;x.fillText('Показания на '+dmy(p.date),P,y);
   y+=50;x.fillStyle=C.muted;x.font='400 30px '+FB;x.fillText('Период: '+dmy(p.prevDate)+' – '+dmy(p.date)+' · '+daysWord(p.days),P,y);
 
@@ -403,6 +480,18 @@ function drawReceipt(p){
   y+=56;x.font='500 28px '+FB;x.fillStyle=C.ink;x.fillText('Главный счетчик × '+KT,L,y);x.font='500 30px '+FN;rt(x,fmt(p.mainKwh),R,y);
   y+=52;x.font='500 28px '+FB;x.fillStyle=p.diff<0?C.danger:C.muted;x.fillText('Разница (потери)',L,y);x.font='500 28px '+FN;rt(x,fmt(p.diff)+'  ·  '+fmt1(p.pct)+' %',R,y);
   y+=26;
+  if(all){
+    y+=72;x.fillStyle=C.muted;x.font='600 22px '+FB;sp(x,'ЛИЧНЫЕ СЧЕТЧИКИ',P,y,1.5);
+    y+=46;x.font='500 24px '+FB;x.fillStyle=C.muted;x.fillText('Счетчик',P,y);rt(x,'Было',c1,y);rt(x,'Стало',c2,y);rt(x,'кВт·ч',c3,y);
+    y+=20;hl(x,P,W-P,y,C.ink,2);
+    p.own.forEach(o=>{const m=o.m;
+      const sub=[m.reg?REG_TITLE:'',m.kt&&o.d!=null?'разница '+fmt(o.d)+' × '+m.kt:'',o.cur==null?'нет показаний':'',o.cur!=null&&o.prevDate&&o.prevDate!==p.prevDate?'было на '+dmy(o.prevDate):''].filter(Boolean).join(' · ');
+      y+=48;x.fillStyle=C.ink;x.font='600 30px '+FB;x.fillText(m.name,P,y);
+      x.font='500 29px '+FN;rt(x,o.prev!=null?fmt(o.prev):'—',c1,y);rt(x,o.cur!=null?fmt(o.cur):'—',c2,y);
+      x.font='600 31px '+FN;x.fillStyle=o.kwh==null?C.muted:C.ink;rt(x,o.kwh!=null?fmt(o.kwh):'—',c3,y);
+      if(sub){y+=34;x.font='400 23px '+FB;x.fillStyle=C.muted;x.fillText(sub,P,y)}
+      y+=22;hl(x,P,W-P,y,C.line,1.5)});
+  }
   if(noteLines.length){y+=60;x.fillStyle=C.muted;x.font='600 22px '+FB;sp(x,'ПРИМЕЧАНИЕ',P,y,1.5);x.fillStyle=C.ink;x.font='400 28px '+FB;
     noteLines.forEach(l=>{y+=40;x.fillText(l,P,y)})}
   y+=56;x.fillStyle=C.muted;x.font='400 22px '+FB;x.fillText('Расход Клюева = общий счетчик «Клюев» − подсчетчик Андронова',P,y);
@@ -415,17 +504,19 @@ function drawReceipt(p){
   function wrap(t,maxW,font){const c=document.createElement('canvas').getContext('2d');c.font=font;const out=[];
     t.split(/\n/).forEach(par=>{let line='';par.split(/\s+/).forEach(w=>{const tt=line?line+' '+w:w;if(c.measureText(tt).width>maxW&&line){out.push(line);line=w}else line=tt});if(line)out.push(line)});return out.slice(0,6)}
 }
-async function openReceipt(date){
+async function openReceipt(date,mode){
   const p=period(date);if(!p||p.bad.length)return;
+  const canAll=hasOwn(S.rec[date])&&!p.ownBad.length;if(mode!=='all'||!canAll)mode='main';
   S.receipt=date;S.tabBefore=S.tab;view.innerHTML=`<section class="panel"><p class="muted">Готовлю картинку…</p></section>`;window.scrollTo({top:0});
   await loadFonts();
-  const cv=drawReceipt(p);
+  const cv=drawReceipt(p,mode);
   const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
   if(S.pngUrl)URL.revokeObjectURL(S.pngUrl);
-  S.png=new File([blob],'garazhi-'+date+'.png',{type:'image/png'});S.pngUrl=URL.createObjectURL(blob);
+  S.png=new File([blob],(mode==='all'?'garazhi-vse-':'garazhi-osnovnye-')+date+'.png',{type:'image/png'});S.pngUrl=URL.createObjectURL(blob);
   if(S.receipt!==date)return;
   view.innerHTML=`<section class="panel">
       <h2>Картинка для Елены</h2>
+      ${canAll?`<div class="seg" role="group" aria-label="Состав картинки"><button data-act="receipt" data-mode="main" data-d="${date}" aria-pressed="${mode==='main'}">Основные</button><button data-act="receipt" data-mode="all" data-d="${date}" aria-pressed="${mode==='all'}">Все</button></div>`:''}
       <p class="muted">${dmy(p.prevDate)} → ${dmy(p.date)}. Нажми «Отправить» и выбери мессенджер или «Сохранить изображение».</p>
       <button class="btn primary big" data-act="share">Отправить</button>
       <img class="receipt-img" src="${S.pngUrl}" alt="Показания и расход по гаражам на ${dmy(p.date)}">
@@ -464,15 +555,15 @@ view.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.m){const v=parseNum(t.value);if(!Number.isNaN(v))writeField(t.dataset.m,v);updateCalc()}
   else if(t.id==='noteIn')writeField('note',t.value.trim()?t.value:'');
 });
-view.addEventListener('keydown',e=>{const t=e.target;if(e.key==='Enter'&&t.dataset.m){e.preventDefault();const i=METERS.findIndex(m=>m.id===t.dataset.m);
-  const nx=METERS[i+1];if(nx)document.getElementById('in-'+nx.id).focus();else t.blur()}});
+view.addEventListener('keydown',e=>{const t=e.target;if(e.key==='Enter'&&t.dataset.m){e.preventDefault();const i=ALL.findIndex(m=>m.id===t.dataset.m);
+  const nx=ALL[i+1];if(nx)document.getElementById('in-'+nx.id).focus();else t.blur()}});
 view.addEventListener('change',e=>{const t=e.target;
   if(t.id==='dateIn'){switchDate(t.value||todayStr());render()}
   else if(t.id==='importIn'&&t.files&&t.files[0])importData(t.files[0]);
   else if(t.dataset.m){const v=parseNum(t.value);if(v!=null&&!Number.isNaN(v))t.value=fmt(v)}
 });
 view.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
-  if(act==='receipt'){openReceipt(b.dataset.d);return}
+  if(act==='receipt'){openReceipt(b.dataset.d,b.dataset.mode);return}
   if(act==='share'){sharePng();return}
   if(act==='back'){render();window.scrollTo({top:0});return}
   if(act==='open'){switchDate(b.dataset.d);S.tab='log';render();window.scrollTo({top:0});return}
@@ -487,6 +578,12 @@ view.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');i
   if(!seeded&&!Object.keys(S.rec).length){
     for(const [d,v] of Object.entries(SEED))S.rec[d]={date:d,v:{...v},note:'',updatedAt:'2026-10-26T00:00:00.000Z'};
     saveLocal();try{localStorage.setItem(LS_SEED,'1')}catch(e){}
+  }
+  let seededOwn=null;try{seededOwn=localStorage.getItem(LS_SEED_OWN)}catch(e){}
+  if(!seededOwn){
+    for(const [d,v] of Object.entries(SEED_OWN)){const r=S.rec[d];if(!r)continue;
+      for(const [k,val] of Object.entries(v))if(!has(r,k))r.v[k]=val}
+    saveLocal();try{localStorage.setItem(LS_SEED_OWN,'1')}catch(e){}
   }
   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
   render();setSave('ok');
